@@ -13,11 +13,11 @@ interface IDeals {
   order: string
   description: string
   originDataSnapshots: object
-  business: Schema.Types.ObjectId
+  businessId: Schema.Types.ObjectId
   status: string
   // deal info
   tags: string[]
-  owner: Schema.Types.ObjectId
+  ownerUserId: Schema.Types.ObjectId
   dealStatus: string
   activity: object[]
   notes: object[]
@@ -58,7 +58,7 @@ const schema = {
   originDataSnapshots: {
     type: [Object]
   },
-  business: {
+  businessId: {
     type: Schema.Types.ObjectId
   },
   status: {
@@ -68,7 +68,7 @@ const schema = {
   tags: {
     type: [String]
   },
-  owner: {
+  ownerUserId: {
     type: Schema.Types.ObjectId
   },
   dealStatus: {
@@ -80,6 +80,9 @@ const schema = {
   notes: {
     type: [Object]
   },
+  appId: {
+    type: Schema.Types.ObjectId
+  }
 }
 
 const newSchema = new Schema<IDeals>(schema, {

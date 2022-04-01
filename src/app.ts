@@ -44,13 +44,17 @@ app.get('/v1/app/:appId/origin/sales', async (request, response) => {
     }
 })
 
-app.get('/v1/app/:appId/sales', async (request, response) => {
+app.get('/v1/sales', async (request, response) => {
     // app filtrar deals com businessID = app
+    // filtrar deals por user owner
+    // filtar deal por admin (mostrar todos por exemplo sem limitação de owner)
 
-    const deals = await Deals.find()
+    const token = request.headers['authorization']
+    if (!token) return response.status(401).json({ message: 'token não encontrado' })
+
+    const deals = await Deals.find({ businessId: token })
     const paging = createPagination({ totalItems: deals.length })
     
-    console.log(deals)
     response.status(200).json({ deals, paging })
 })
 
@@ -61,7 +65,10 @@ app.post('/v1/hooks', async (request, response) => {
 })
 
 app.get('/v1/hooks', async (request, response) => {
-    const result = await Hooks.find()
+    const token = request.headers['authorization']
+    if (!token) return response.status(401).json({ message: 'token não encontrado' })
+
+    const result = await Hooks.find({ businessId: token })
     const webhookPrefixURL = `${process.env.API_BASE_URL}/v1/hooks/catch`
     const resultUpdated = result.map((item: any) => ({
         item,
@@ -71,8 +78,12 @@ app.get('/v1/hooks', async (request, response) => {
 })
 
 app.post('/v1/hooks/catch/:hookId', async (request, response) => {
-    // verificar business e outros dados com o businessID
+    const { hookId } = request.params
+    
+    // verificar business e outros dados com o businessID (pendente)
+
     // verificar se existe deal já criado com este webhook
+
     // criar ou atualizar deal
     const {
         userInfo: { name, phone: mobilePhone, email, birthDate, address },
@@ -84,6 +95,10 @@ app.post('/v1/hooks/catch/:hookId', async (request, response) => {
         checkout_price_in_cents: orderPrice
     } = request.body
 
+    
+
+    const currentDeal: any = await Deals.findOne({ order, businessId: hookId })
+
     const dealOwnerConfig = {
         // deal chegar sem dono, usuário clica e vira dono do deal
         // deal chegar sem dono, apenas admin pode vincular deal com usuários
@@ -91,10 +106,9 @@ app.post('/v1/hooks/catch/:hookId', async (request, response) => {
         // deal chegar e de acordo com certa propriedade buscar uma conexão da propriedade com um usuário.
     }
 
-    console.log('status', status)
     const dealStatus = salesStatus[status].group
    
-    const newDeal = {
+    const newDeal: any = {
         // customer info
         name,
         mobilePhone: mobilePhone.replace(/[^\d]+/g, ''),
@@ -115,12 +129,27 @@ app.post('/v1/hooks/catch/:hookId', async (request, response) => {
         dealStatus,
         activity: null,
         notes: null,
+        businessId: hookId
       };
 
-      const createdDeal = await Deals.create(newDeal)
+      if (currentDeal) {
+          console.log('atualizando current deal')
+          for (const key in newDeal) {
+              if (currentDeal[key] !== newDeal[key]) {
+                  console.log('novo dado ',  currentDeal[key], newDeal[key])
+                  currentDeal[key] = newDeal[key]
+              } else {
+                  console.log('nenhum dado novo',  currentDeal[key], newDeal[key])
+              }
+          }
+          await currentDeal.save()
+          console.log('atualizado')
+          return response.status(200).json({ message: 'Deal atualizado'})
+      }
 
-      console.log('newDeal: ', newDeal)
-      console.log('createdDeal: ', createdDeal)
+      console.log('Criando novo deal')
+      const createdDeal = await Deals.create(newDeal)
+      console.log('Criado')
       
       response.status(200).json(createdDeal)
     
