@@ -3,7 +3,7 @@ const defaultDeatline = {
     unit: null
 }
 
-const salesStatus: any = {
+export const salesStatus: any = {
     // open
     not_logged: { group: 'open', deadline: defaultDeatline },
     basic_info_incomplete: { group: 'open', deadline: defaultDeatline },
@@ -54,4 +54,16 @@ const salesStatus: any = {
 //     lost: []
 // }
 
-export default salesStatus
+export const apiReferences = {
+    baseURL: {
+        production: 'https://ms-checkout.provi.com.br',
+        development: 'https://ms-checkout-staging.provi.com.br'
+    },
+    apiVersionIdentifier: 'v4',
+    endpoints: {
+        webhookPreferences: {
+            create: '/webhook/preference',
+            update: '/webhook-endpoint'
+        }
+    }
+}

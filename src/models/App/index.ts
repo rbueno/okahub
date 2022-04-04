@@ -6,7 +6,11 @@ const schema = new Schema({
         type: String
     },
     active: {
-        type: Boolean
+        type: Boolean,
+        default: true
+    },
+    options: {
+        type: Object
     }
 })
 

@@ -2,15 +2,117 @@ import 'dotenv/config'
 import express from 'express'
 import axios from 'axios'
 import cors from 'cors'
-import salesStatus from './integrations/provi/settings/status'
-import { Deals, Business, Hooks } from './models'
+import { salesStatus, apiReferences } from './integrations/provi/settings'
+import { Deals, Business, Hooks, App } from './models'
 import { createPagination } from './utils'
 const app = express()
 
 app.use(express.json({}))
 app.use(cors())
 
-app.get('/v1/app/:appId/origin/sales', async (request, response) => {
+// provi app test
+const envProvi = 'development'
+
+app.put('/v1/app/profile', async (request, response) => {
+    const businessId = request.headers['authorization']
+    const { appname, appToken } = request.body
+    const appProfile = await App.findOne({ name: appname, businessId })
+    
+    // test apitoken
+    console.log('options', { baseURL: apiReferences.baseURL[envProvi], timeout: 20000, headers: { 'api_token': appToken } })
+    const apiTest = axios.create({ baseURL: apiReferences.baseURL[envProvi], timeout: 20000, headers: { 'api-token': appToken } })
+    
+
+    try {
+        const data = await apiTest.get(`/${apiReferences.apiVersionIdentifier}/sales`)
+        console.log(`ApiToken verificada - status: ${data.status}`)
+    } catch (error: any) {
+        return response.status(error.response?.status || 500).json({ message: error.response?.statusText || 'Erro desconhecido' })
+    }
+
+    // if app is provi
+    const newAppProfile = {
+        businessId,
+        name: 'provi',
+        options: {
+            apiToken: appToken
+        }
+    }
+    if (!appProfile) {
+        const appCreated = await App.create(newAppProfile)
+        return response.status(200).json(appCreated)
+    }
+
+    appProfile.oprions.apiToken = appToken
+    await appProfile.save()
+    response.status(200).json({ message: 'App atualizado'})
+
+})
+
+app.get('/v1/app/profile', async (request, response) => {
+    const businessId = request.headers['authorization']
+    const { appinstance  } = request.query
+    console.log('{ name: appinstance, businessId }', { name: appinstance, businessId })
+    const whereClause = {
+        ...(appinstance ? { name: appinstance, businessId } : { businessId })
+    }
+    const appProfile = await App.find(whereClause)
+
+    if (!appProfile.length) {
+        return response.status(404).json({ message: 'Nenhum app encontrado' })
+    }
+
+    response.status(200).json(appProfile)
+
+})
+
+app.put('/v1/app/profile/options/settings', async (request, response) => {
+    // criar ou atualizar endpoint
+    const businessId = request.headers['authorization']
+    const { appname } = request.body
+    
+    try {
+        const appProfile = await App.findOne({ name: appname, businessId })
+
+    async function getWebhookEndpoint() {
+        const result = await Hooks.findOne({ businessId }).sort({ _id: -1 })
+        const webhookPrefixURL = `${process.env.API_BASE_URL}/v1/hooks/catch`
+        return `${webhookPrefixURL}/${result?.businessId}`
+    }
+
+    const appApi = axios.create({ baseURL: apiReferences.baseURL[envProvi], timeout: 20000, headers: { 'api-token': appProfile.options.apiToken } })
+
+    if (appProfile.options.webhookPreferences) {
+        const bodyToUpdate = {
+            id: appProfile.options.webhookPreferences.id,
+            url: await getWebhookEndpoint
+        }
+        const updateEndpoint = '/' + apiReferences.apiVersionIdentifier + apiReferences.endpoints.webhookPreferences.update
+        const { data: webhookPreferencesUpdated } = await appApi.patch(updateEndpoint, bodyToUpdate)
+        appProfile.options.webhookPreferences.url = bodyToUpdate.url
+        await appProfile.save()
+        return response.status(200).json(webhookPreferencesUpdated)
+    }
+
+    const bodyToCreate = {
+        url: await getWebhookEndpoint()
+    }
+    const createEndpoint = '/' + apiReferences.apiVersionIdentifier + apiReferences.endpoints.webhookPreferences.create
+    const { data: webhookPreferencesCreated } = await appApi.post(createEndpoint, bodyToCreate)
+
+    appProfile.options.webhookPreferences = {
+        url: bodyToCreate.url
+    }
+    appProfile.save()
+    response.status(200).json(webhookPreferencesCreated)
+    } catch (error: any) {
+        console.log('=====================> deu ruim: ', error)
+        console.log('=====================> deu ruim: ', error.response)
+        
+    }
+})
+
+app.get('/v1/app/native-resources/:appId/sales', async (request, response) => {
     const api = axios.create({ baseURL: 'https://ms-checkout-staging.provi.com.br', timeout: 20000, headers: { 'authorization': process.env.DEV_API_TOKEN || '' } })
     
     const pipe: any = {
