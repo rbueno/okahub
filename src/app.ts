@@ -209,14 +209,15 @@ app.post('/v1/hooks/catch/:hookId', async (request, response) => {
     }
 
     const dealStatus = salesStatus[status].group
-   
+    const [dd, mm, yyyy] = birthDate?.split('/') || null
+
     const newDeal: any = {
         // customer info
         name,
         mobilePhone: mobilePhone.replace(/[^\d]+/g, ''),
         email,
         products,
-        birthDate,
+        birthDate: `${mm}/${dd}/${yyyy}`,
         address,
         order,
         orderPrice,
