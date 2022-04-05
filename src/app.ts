@@ -214,7 +214,7 @@ app.post('/v1/hooks/catch/:hookId', async (request, response) => {
     const newDeal: any = {
         // customer info
         name,
-        mobilePhone: mobilePhone.replace(/[^\d]+/g, ''),
+        mobilePhone: mobilePhone?.replace(/[^\d]+/g, '') || null,
         email,
         products,
         birthDate: `${mm}/${dd}/${yyyy}`,
