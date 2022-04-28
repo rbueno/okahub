@@ -1,6 +1,6 @@
-import { Schema, model } from 'mongoose'
+import { Schema, model, Document } from 'mongoose'
 
-interface IHooks {
+interface IHooks extends Document {
     businessId: Schema.Types.ObjectId
     active: boolean
 }

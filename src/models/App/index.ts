@@ -12,6 +12,6 @@ const schema = new Schema({
     options: {
         type: Object
     }
-})
+}, { timestamps: true })
 
 export const App = model('App', schema)

@@ -1,8 +1,10 @@
-import { Schema, model } from 'mongoose'
+import { Schema, model, Document } from 'mongoose'
 
-interface IBusiness {
+export interface IBusiness extends Document {
   name: string,
   slug: string,
+  email: string,
+  password: string,
 }
 
 const schema = new Schema<IBusiness>({
@@ -11,6 +13,14 @@ const schema = new Schema<IBusiness>({
     required: true
   },
   slug: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    required: true,
+  },
+  password: {
     type: String,
     required: true
   }

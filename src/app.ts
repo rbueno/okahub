@@ -1,9 +1,11 @@
 import 'dotenv/config'
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import axios from 'axios'
 import cors from 'cors'
+import jwt from 'jsonwebtoken'
+import bcrypt from 'bcrypt'
 import { salesStatus, apiReferences } from './integrations/provi/settings'
-import { Deals, Business, Hooks, App } from './models'
+import { Deals, Business, Hooks, App, ActivityLogs, Notes, FeatureUsage } from './models'
 import { createPagination } from './utils'
 const app = express()
 
@@ -12,9 +14,33 @@ app.use(cors())
 
 // provi app test
 const envProvi = 'development'
+const activityLogType = {
+    dealCreated: 'dealCreated',
+    dealUpdated: 'dealUpdated',
+    noteCreated: 'noteCreated'
+}
+export interface CustomRequest extends Request {
+    business?: any
+    dealId?: string
+}
+const authMiddleware = async (request: CustomRequest, response: Response, next: NextFunction): Promise<void | Response<any, Record<string, any>>> => {
+    const { authorization } = request.headers
+    
+    try {
+        const businessPayload = jwt.verify(authorization || '', process.env.DECODEJWT || '')
+    
+        request.business = businessPayload
+        if (!businessPayload) return response.status(401).json({ message: 'Forbidden' })
+        return next()
+        
+    } catch (error) {
+        console.log(error)
+        response.status(500).json({ message: 'Unknown error'})
+    }
+}
 
-app.put('/v1/app/profile', async (request, response) => {
-    const businessId = request.headers['authorization']
+app.put('/v1/app/profile', authMiddleware, async (request: CustomRequest, response: Response) => {
+    const { businessId } = request.business
     const { appname, appToken } = request.body
     const appProfile = await App.findOne({ name: appname, businessId })
     
@@ -38,19 +64,24 @@ app.put('/v1/app/profile', async (request, response) => {
             apiToken: appToken
         }
     }
-    if (!appProfile) {
-        const appCreated = await App.create(newAppProfile)
-        return response.status(200).json(appCreated)
+    
+    try {
+        if (!appProfile) {
+            const appCreated = await App.create(newAppProfile)
+            return response.status(200).json(appCreated)
+        }
+    
+        appProfile.oprions.apiToken = appToken
+        await appProfile.save()
+        response.status(200).json({ message: 'App atualizado', appProfile})
+    } catch (error) {
+        console.log(error)
     }
-
-    appProfile.oprions.apiToken = appToken
-    await appProfile.save()
-    response.status(200).json({ message: 'App atualizado'})
 
 })
 
-app.get('/v1/app/profile', async (request, response) => {
-    const businessId = request.headers['authorization']
+app.get('/v1/app/profile', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
     const { appinstance  } = request.query
     console.log('{ name: appinstance, businessId }', { name: appinstance, businessId })
     const whereClause = {
@@ -66,18 +97,19 @@ app.get('/v1/app/profile', async (request, response) => {
 
 })
 
-app.put('/v1/app/profile/options/settings', async (request, response) => {
+app.put('/v1/app/profile/options/settings', authMiddleware, async (request: CustomRequest, response) => {
     // criar ou atualizar endpoint
-    const businessId = request.headers['authorization']
+    const { businessId } = request.business
     const { appname } = request.body
     
     try {
         const appProfile = await App.findOne({ name: appname, businessId })
 
-    async function getWebhookEndpoint() {
-        const result = await Hooks.findOne({ businessId }).sort({ _id: -1 })
+    function getWebhookEndpoint() {
+        // const result = await Hooks.findOne({ businessId }).sort({ _id: -1 })
         const webhookPrefixURL = `${process.env.API_BASE_URL}/v1/hooks/catch`
-        return `${webhookPrefixURL}/${result?.businessId}`
+        // return `${webhookPrefixURL}/${result?.businessId}`
+        return `${webhookPrefixURL}/${businessId}`
     }
 
     const appApi = axios.create({ baseURL: apiReferences.baseURL[envProvi], timeout: 20000, headers: { 'api-token': appProfile.options.apiToken } })
@@ -146,15 +178,15 @@ app.get('/v1/app/native-resources/:appId/sales', async (request, response) => {
     }
 })
 
-app.get('/v1/sales', async (request, response) => {
+app.get('/v1/sales', authMiddleware, async (request: CustomRequest, response) => {
     // app filtrar deals com businessID = app
     // filtrar deals por user owner
     // filtar deal por admin (mostrar todos por exemplo sem limitação de owner)
 
-    const token = request.headers['authorization']
-    if (!token) return response.status(401).json({ message: 'token não encontrado' })
+    const { businessId } = request.business
+    if (!businessId) return response.status(401).json({ message: 'token não encontrado' })
 
-    const deals = await Deals.find({ businessId: token })
+    const deals = await Deals.find({ businessId })
     const paging = createPagination({ totalItems: deals.length })
     
     response.status(200).json({ deals, paging })
@@ -166,11 +198,11 @@ app.post('/v1/hooks', async (request, response) => {
     response.status(200).json(created)
 })
 
-app.get('/v1/hooks', async (request, response) => {
-    const token = request.headers['authorization']
-    if (!token) return response.status(401).json({ message: 'token não encontrado' })
+app.get('/v1/hooks', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
+    if (!businessId) return response.status(401).json({ message: 'token não encontrado' })
 
-    const result = await Hooks.find({ businessId: token })
+    const result = await Hooks.find({ businessId })
     const webhookPrefixURL = `${process.env.API_BASE_URL}/v1/hooks/catch`
     const resultUpdated = result.map((item: any) => ({
         item,
@@ -247,30 +279,90 @@ app.post('/v1/hooks/catch/:hookId', async (request, response) => {
           }
           await currentDeal.save()
           console.log('atualizado')
+          await ActivityLogs.create({
+            type: activityLogType.dealUpdated,
+            title: 'Deal atualizado',
+            description: 'O deal foi atualizado',
+            dealId: currentDeal._id,
+            businessId: hookId
+          })
           return response.status(200).json({ message: 'Deal atualizado'})
       }
 
       console.log('Criando novo deal')
       const createdDeal = await Deals.create(newDeal)
       console.log('Criado')
+      await ActivityLogs.create({
+        type: activityLogType.dealCreated,
+        title: 'Deal criado',
+        description: 'Um novo deal foi criado',
+        dealId: createdDeal._id,
+        businessId: hookId
+      })
       
       response.status(200).json(createdDeal)
     
 })
 
-app.post('/v1/business', async (request, response) => {
+app.post('/v1/business/profile', async (request, response) => {
+    const { name, slug, email, password } = request.body
+    if (!name || !email || !password) return response.status(400).json({ message: 'All fields are required' })
+
+    const business = await Business.findOne({ email: email.trim() })
+    if (business) return response.status(400).json({ message: "Business is not available "})
+
+    const salt = bcrypt.genSaltSync(10)
+    const hashPW = bcrypt.hashSync(password, salt)
+
+    try {
+        const newBusiness = await Business.create({
+            name,
+            slug,
+            email,
+            password: hashPW
+        })
+
+        const token = jwt.sign({
+            businessId: newBusiness._id,
+        },
+            process.env.DECODEJWT || '',
+        {
+            algorithm: 'HS256'
+        })
+        response.status(200).json({ token, newBusiness })
+    } catch (error) {
+        console.log(error)
+    }
+})
+
+app.patch('/v1/business/profile', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
     const { name } = request.body
-    const business = await Business.findOne({ name })
-    if (business) return response.status(401).json({ message: 'Negócio já existe' })
-    const createdBusiness = await Business.create({ name, slug: name })
-    response.status(200).json(createdBusiness)
+    if (!name) return response.status(400).json({ message: 'All fields are required' })
+
+    const business = await Business.findById(businessId)
+    if (!business) return response.status(400).json({ message: "Business is not available "})
+
+    try {
+     business.name = name
+     await business.save()
+    response.status(200).json(business)
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.get('/v1/business', async (request, response) => {
-
     const business = await Business.find()
     const paging = createPagination({ totalItems: business.length })
     response.status(200).json({ business, paging })
+})
+
+app.get('/v1/business/profile', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
+
+    const business = await Business.findById(businessId)
+    response.status(200).json({ business })
 })
 
 app.put('/v1/business/:businessId', async (request, response) => {
@@ -279,5 +371,100 @@ app.put('/v1/business/:businessId', async (request, response) => {
 
     response.status(200).json(business)
 })
+app.post('/v1/session', async (request: Request, response: Response) => {
+    const { email, password } = request.body
+    if (!email || !password) return response.status(400).json({ message: 'All fields are required' })
 
+    const business: any = await Business.findOne({ email: email.trim() })
+    if (!business) return response.status(400).json({ message: 'Credentials are not correctly'})
+
+    const isPasswordCorrect = bcrypt.compareSync(password, business.password)
+    if (!isPasswordCorrect) return response.status(401).json({ message: 'Credentials are not correctly'})
+
+    try {
+        const token = jwt.sign({
+            businessId: business._id,
+        },
+            process.env.DECODEJWT || '',
+        {
+            algorithm: 'HS256'
+        })
+        response.status(201).json({ token, business })
+    } catch (error) {
+        console.log(error)
+    }
+})
+
+app.post('/v1/note', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
+    const dealId = request.headers['x-deal-id']
+    const { text, title } = request.body
+
+    if (!dealId || !text) return response.status(400).json({ message: 'É preciso informar uma nota' })
+
+    const newNote = {
+        dealId,
+        businessId,
+        title: title?.trim(),
+        text: text.trim()
+    }
+
+    try {
+        const createdNotes = await Notes.create(newNote)
+        await ActivityLogs.create({
+            type: activityLogType.noteCreated,
+            title: 'Criação de nota',
+            description: 'Uma nova nota foi criada',
+            dealId,
+            businessId
+          })
+        response.status(200).json(createdNotes)
+    } catch (error) {
+        console.log(error)
+    }
+})
+app.get('/v1/note', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
+    const { dealId = null } = request
+
+    const whereClause = { businessId }
+    if (dealId) Object.assign('whereClause', { dealId })
+
+    try {
+        const notes = await Notes.find(whereClause)
+        response.status(200).json(notes)
+    } catch (error) {
+        console.log(error)
+    }
+})
+app.get('/v1/activitylogs', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
+
+    const whereClause = { businessId }
+
+    try {
+        const activityLogs = await ActivityLogs.find(whereClause)
+        response.status(200).json(activityLogs)
+    } catch (error) {
+        console.log(error)
+    }
+})
+
+app.post('/v1/featureusage', authMiddleware, async (request: CustomRequest, response) => {
+    const { businessId } = request.business
+    const { name, type } = request.body
+
+    if(!name || !type) return response.status(400).send()
+
+    try {
+        await FeatureUsage.create({
+            name,
+            type,
+            businessId
+        })
+        response.status(200).send()
+    } catch (error) {
+        console.log(error)
+    }
+})
 export default app
