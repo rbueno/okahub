@@ -22,14 +22,14 @@ const schema = new Schema({
     description: {
         type: String,
     },
-    additionalEntity: {
-        type: String,
-    },
     dealId: {
         type: Schema.Types.ObjectId,
     },
     businessId: {
         type: Schema.Types.ObjectId,
+    },
+    additionalEntity: {
+        type: String,
     },
     additionalEntityForeignKey: {
         type: Schema.Types.ObjectId,

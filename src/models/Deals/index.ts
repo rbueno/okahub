@@ -1,6 +1,11 @@
-import { Schema, model } from 'mongoose'
+import { Schema, model, Document } from 'mongoose'
 
-interface IDeals {
+export interface IProductResume extends Document {
+  name?: string
+  price?: number
+  detail?: string
+}
+export interface IDeals extends Document {
   // customer info
   name: string
   mobilePhone: string
@@ -19,9 +24,15 @@ interface IDeals {
   tags: string[]
   ownerUserId: Schema.Types.ObjectId
   dealStatus: string
+  customerStatus: string
   activity: object[]
   notes: object[]
+  latestAction: object
+  isCustomer: boolean
+  productsResume: IProductResume[]
 }
+
+
 
 const schema = {
   // customer info
@@ -41,6 +52,9 @@ const schema = {
     type: String
   },
   products: {
+    type: [Object]
+  },
+  productsResume: {
     type: [Object]
   },
   orderPrice: {
@@ -74,8 +88,17 @@ const schema = {
   dealStatus: {
     type: String
   },
+  customerStatus: {
+    type: String
+  },
+  isCustomer: {
+    type: Boolean
+  },
   activity: {
     type: [Object]
+  },
+  latestAction: {
+    type: Object
   },
   notes: {
     type: [Object]

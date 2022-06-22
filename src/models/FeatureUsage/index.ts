@@ -2,13 +2,13 @@ import { Schema, Document, model } from 'mongoose'
 
 type UsageType = 'click'
 export interface IFeatureUsage extends Document {
-    name: string
+    title: string
     type: UsageType
     businessId: Schema.Types.ObjectId
 }
 
 const schema = new Schema<IFeatureUsage>({
-    name: {
+    title: {
         type: String,
         required: true
     },

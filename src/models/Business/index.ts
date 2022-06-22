@@ -4,7 +4,9 @@ export interface IBusiness extends Document {
   name: string,
   slug: string,
   email: string,
-  password: string,
+  phoneNumber: string,
+  whatsapp: string,
+  workspaces: Schema.Types.ObjectId[]
 }
 
 const schema = new Schema<IBusiness>({
@@ -18,12 +20,17 @@ const schema = new Schema<IBusiness>({
   },
   email: {
     type: String,
-    required: true,
   },
-  password: {
+  phoneNumber: {
     type: String,
-    required: true
-  }
+  },
+  whatsapp: {
+    type: String,
+  },
+  workspaces: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Workspaces',
+  }]
 }, {
   timestamps: true
 })
