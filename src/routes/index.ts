@@ -5,6 +5,7 @@ import { hook } from '../controllers'
 const routes = Router()
 
 routes.use('/v1', routerV1)
+routes.get('/hooks/catch/:hookId', hook.find)
 routes.post('/hooks/catch/:hookId', hook.createOrUpdate)
 routes.get('/health', async (request, response) => {
     response.status(200).json({ message: `Live - ${new Date()}` })
