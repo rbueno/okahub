@@ -8,8 +8,8 @@ export const createOrUpdate = async (request: Request, response: Response) => {
     const { body } = request
     const query: any = request.query
 
-    if (query && query['hub.verify_token']) {
-        return response.status(200).json({ 'hub.challenge': query['hub.challenge']})
+    if (query && query['hub.challenge']) {
+        return response.status(200).send(query['hub.challenge'])
     }
 
     if (!isValidObjectId(hookId)) return response.status(400).json({ message: 'Endereço inválido. Contate Okahub para ajuda' })
