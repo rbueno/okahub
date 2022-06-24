@@ -2,13 +2,8 @@ import { Response } from 'express'
 import { Apps, Workspaces } from '../../../models'
 import { CustomRequest } from '../../../middlewares/authMiddleware'
 
-export const find = async (request: CustomRequest, response: Response) => {
+export const findAll = async (request: CustomRequest, response: Response) => {
     const { workspaceId } = request
-    const query: any = request.query
-
-    if (query && query['hub.verify_token']) {
-        return response.status(200).json({ 'hub.challenge': query['hub.challenge']})
-    }
     const workspace = await Workspaces.findById(workspaceId)
     if (!workspace) return response.status(500).json({ message: 'Ocorreu um erro inesperado' })
     

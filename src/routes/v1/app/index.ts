@@ -5,7 +5,8 @@ import { app } from '../../../controllers'
 const appRouter = Router()
 
 appRouter.post('/', authMiddleware, app.create)
-appRouter.get('/', authMiddleware, app.find)
+appRouter.get('/', authMiddleware, app.findAll)
+appRouter.get('/:appId', authMiddleware, app.find)
 appRouter.delete('/:appId', authMiddleware, app.deleteApp)
 
 export { appRouter }
