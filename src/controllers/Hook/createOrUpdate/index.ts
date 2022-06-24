@@ -8,10 +8,6 @@ export const createOrUpdate = async (request: Request, response: Response) => {
     const { body } = request
     const query: any = request.query
 
-    if (query && query['hub.challenge']) {
-        return response.status(200).send(query['hub.challenge'])
-    }
-
     if (!isValidObjectId(hookId)) return response.status(400).json({ message: 'Endereço inválido. Contate Okahub para ajuda' })
     
     const app = await Apps.findOne({ _id: hookId }).populate('businessId')
