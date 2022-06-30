@@ -30,7 +30,10 @@ const validateProviData = async (_: any, platformAPI: any): Promise<boolean | un
 
 const settingsDataValidation: any = {
     provi: validateProviData,
-    whatsapp: () => true
+    whatsapp: (settingsData: any, _: any) => {
+        if(settingsData?.phoneNumber) return true
+        return false
+    }
 }
 
 const createPlatformAPI: any = {
@@ -59,7 +62,7 @@ const iniciateNewAppInstance: any = {
             throw new Error('erro inesperado')
         }
     },
-    whatsapp: async (settingsData: SettingsDataDTO, workspace: any) => {
+    whatsapp: async (settingsData: any, workspace: any) => {
         const iniciateNewAppData = {
             businessId: workspace.businessId,
             title: 'Whatsapp',
@@ -67,7 +70,10 @@ const iniciateNewAppInstance: any = {
             active: false,
             status: 'pending_configuration',
             options: {
-                verifyToken: v4()
+                verifyToken: v4(),
+                whatsAppInfo: {
+                    phoneNumber: settingsData?.phoneNumber // verificar se o número é único
+                }
             }
         }
         try {
